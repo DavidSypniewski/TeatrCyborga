@@ -1,0 +1,78 @@
+#include <Adafruit_NeoPixel.h>
+#include <NewPing.h>
+int ledPin = 3;
+int ledCount = 74;
+
+Adafruit_NeoPixel strip(ledCount, ledPin, NEO_GRB + NEO_KHZ800);
+NewPing sonar(12, 11, 200);//TRIG pin, ECHO pin and the max distance in cm
+
+int sensorValue;
+int prevSensorValue;
+
+int dist;
+
+int hue[74];
+int brightness[74];
+
+bool detected = false;
+bool listening = false;
+int thres = 2;
+int norm = 556;
+
+long currentMillis;
+long prevMillis1;
+long prevMillis2;
+long intervalSonar = 30;
+long intervalLED = 30;
+
+float smooth = 0.86;
+
+void setup() {
+  Serial.begin(9600);
+  strip.begin();
+  for (int i = 0; i < ledCount; i++) {
+    hue[i] = 0;
+    brightness[i] = 0;
+  }
+}
+
+void loop() {
+  currentMillis = millis();
+  if (currentMillis >= prevMillis2) {
+    prevMillis2 = currentMillis + intervalSonar;
+    dist = sonar.ping_cm();
+      if(dist > 0){
+        intervalLED = 10 + dist/2;
+      }
+  }
+
+  if (currentMillis >= prevMillis1) {
+    prevMillis1 = currentMillis + intervalLED;
+    sensorValue = analogRead(A0);
+    prevSensorValue = (smooth * prevSensorValue) + ((1 - smooth) * sensorValue);
+
+    if (prevSensorValue > norm + thres) {
+      detected = true;
+    } else {
+      detected = false;
+    }
+
+    if (detected) {      
+        hue[0] = abs((prevSensorValue - norm)) * 2000;        
+        brightness[0] = 80 + brightness[1]/10;
+      } else {
+        brightness[0] = 0;
+      }
+
+      strip.clear();
+      for (int i = 0; i < ledCount; i++) {
+        strip.setPixelColor(i, strip.ColorHSV(hue[i], 240, brightness[i]));        
+      }
+      
+      strip.show();
+        for (int i = 1; i < ledCount; i++) {        
+          hue[ledCount-i] = hue[ledCount-i-1];
+          brightness[ledCount-i] = brightness[ledCount-i-1];  
+        }   
+    }
+}
